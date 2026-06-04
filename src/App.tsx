@@ -7,10 +7,12 @@ import { ArrowRight, Lock, Clock, Zap, ShieldCheck, RotateCcw, CheckCircle } fro
 interface Option { label: string; score: number; tag: string }
 interface Question { question: string; context: string; options: Option[] }
 type Step = 'intro' | 'quiz' | 'gate' | 'results';
+// Flow: intro → all 8 questions → gate (no results visible yet) → results
+// Gate fires after the last answer — full curiosity intact, nothing revealed
 
 // ─── Questions ────────────────────────────────────────────────────────────────
 
-const PHASE1: Question[] = [
+const ALL_QUESTIONS: Question[] = [
   {
     question: 'How does your team get data from ERPs and source systems into reports?',
     context: 'Data integration is the foundation. Everything else depends on it.',
@@ -61,9 +63,6 @@ const PHASE1: Question[] = [
       { label: 'Each entity has its own structure, no standardisation',    score: 1, tag: 'Siloed' },
     ],
   },
-];
-
-const PHASE2: Question[] = [
   {
     question: 'Has your team experimented with AI (Copilot, ChatGPT, etc.) in financial workflows?',
     context: 'AI output quality in finance tracks directly with data governance maturity.',
@@ -96,16 +95,13 @@ const PHASE2: Question[] = [
   },
 ];
 
-const ALL_QUESTIONS = [...PHASE1, ...PHASE2];
 const TOTAL_QUESTIONS = ALL_QUESTIONS.length;
-const PHASE1_COUNT = PHASE1.length;
 const MAX_SCORE = TOTAL_QUESTIONS * 4;
-const PHASE1_MAX = PHASE1_COUNT * 4;
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────
 
-function toHundred(raw: number, max: number): number {
-  return Math.round(((raw - (max / 4)) / (max - (max / 4))) * 100);
+function toHundred(raw: number): number {
+  return Math.round(((raw - (MAX_SCORE / 4)) / (MAX_SCORE - (MAX_SCORE / 4))) * 100);
 }
 
 // ─── Maturity tiers ───────────────────────────────────────────────────────────
@@ -356,8 +352,7 @@ function MaturityLadder({ currentNumber }: { currentNumber: number }) {
 // ─── Supabase lead capture (graceful if not configured) ───────────────────────
 
 async function saveLead(data: {
-  name: string; email: string; company: string;
-  phase1Score: number; answers: number[];
+  name: string; email: string; company: string; answers: number[];
 }) {
   const url = import.meta.env.VITE_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -375,7 +370,7 @@ async function saveLead(data: {
       name: data.name,
       email: data.email,
       company: data.company,
-      phase1_score: data.phase1Score,
+      total_score: data.answers.reduce((s, a) => s + a, 0),
       answers: data.answers,
       source: 'fi-intelligence-assessment',
     }),
@@ -385,27 +380,21 @@ async function saveLead(data: {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [step, setStep]           = useState<Step>('intro');
-  const [currentQ, setCurrentQ]   = useState(0);
-  const [answers, setAnswers]     = useState<number[]>([]);
-  const [selected, setSelected]   = useState<number | null>(null);
-  const [name, setName]           = useState('');
-  const [email, setEmail]         = useState('');
-  const [company, setCompany]     = useState('');
+  const [step, setStep]             = useState<Step>('intro');
+  const [currentQ, setCurrentQ]     = useState(0);
+  const [answers, setAnswers]       = useState<number[]>([]);
+  const [selected, setSelected]     = useState<number | null>(null);
+  const [name, setName]             = useState('');
+  const [email, setEmail]           = useState('');
+  const [company, setCompany]       = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted]   = useState(false);
 
-  const isPhase2 = currentQ >= PHASE1_COUNT;
-  const allQs    = ALL_QUESTIONS;
-  const q        = allQs[currentQ];
-
-  const phase1Score  = answers.slice(0, PHASE1_COUNT).reduce((s, a) => s + a, 0);
-  const totalScore   = answers.reduce((s, a) => s + a, 0);
-  const score100     = toHundred(totalScore, MAX_SCORE);
-  const partial100   = toHundred(phase1Score, PHASE1_MAX);
-  const tier         = getTier(score100);
-  const partialTier  = getTier(partial100);
-  const metrics      = getMetrics(answers);
+  const q         = ALL_QUESTIONS[currentQ];
+  const totalScore = answers.reduce((s, a) => s + a, 0);
+  const score100  = toHundred(totalScore);
+  const tier      = getTier(score100);
+  const metrics   = getMetrics(answers);
 
   function handleSelect(score: number) {
     if (selected !== null) return;
@@ -414,10 +403,8 @@ export default function App() {
       const newAnswers = [...answers, score];
       setAnswers(newAnswers);
       setSelected(null);
-      if (currentQ + 1 === PHASE1_COUNT) {
-        setStep('gate');
-      } else if (currentQ + 1 === TOTAL_QUESTIONS) {
-        setStep('results');
+      if (currentQ + 1 === TOTAL_QUESTIONS) {
+        setStep('gate'); // all questions done → gate before revealing results
       } else {
         setCurrentQ(q => q + 1);
       }
@@ -428,13 +415,10 @@ export default function App() {
     e.preventDefault();
     if (!email || !name || !company) return;
     setSubmitting(true);
-    await saveLead({ name, email, company, phase1Score, answers });
+    await saveLead({ name, email, company, answers });
     setSubmitting(false);
     setSubmitted(true);
-    setTimeout(() => {
-      setCurrentQ(PHASE1_COUNT);
-      setStep('quiz');
-    }, 600);
+    setTimeout(() => setStep('results'), 600);
   }
 
   function restart() {
@@ -449,8 +433,8 @@ export default function App() {
   }
 
   const progress = step === 'results' ? 1
-    : step === 'gate' ? PHASE1_COUNT / TOTAL_QUESTIONS
-    : currentQ / TOTAL_QUESTIONS;
+    : step === 'gate' ? 1
+    : (currentQ + 1) / TOTAL_QUESTIONS;
 
   return (
     <div style={s.wrap}>
@@ -508,10 +492,7 @@ export default function App() {
             <motion.div key={`q-${currentQ}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}>
               <div style={s.card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                  <p style={s.label}>
-                    Question {currentQ + 1} of {TOTAL_QUESTIONS}
-                    {isPhase2 && <span style={{ marginLeft: 8, color: '#1F8FFF' }}>· AI Readiness</span>}
-                  </p>
+                  <p style={s.label}>Question {currentQ + 1} of {TOTAL_QUESTIONS}</p>
                 </div>
                 <h2 style={{ fontSize: 'clamp(1rem, 3vw, 1.2rem)', fontWeight: 700, color: '#fff', lineHeight: 1.45, marginBottom: 6 }}>
                   {q.question}
@@ -555,57 +536,52 @@ export default function App() {
             </motion.div>
           )}
 
-          {/* ── Mid-gate ── */}
+          {/* ── Gate (after all 8 questions — results not yet visible) ── */}
           {step === 'gate' && (
             <motion.div key="gate" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              {/* Partial score card */}
+
+              {/* Teaser: tier label + locked score */}
               <div style={s.card}>
-                <p style={s.label}>Your Finance Intelligence Score — so far</p>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 8 }}>
-                  <span style={{ fontSize: '3.5rem', fontWeight: 900, color: partialTier.color, lineHeight: 1 }}>
-                    {partial100}
-                  </span>
-                  <span style={{ fontSize: '1.2rem', color: 'rgba(255,255,255,0.3)', marginBottom: 6 }}>/100</span>
-                  <span style={{
-                    marginBottom: 8, padding: '4px 12px', borderRadius: 999,
-                    background: `${partialTier.color}22`, color: partialTier.color,
-                    fontSize: 13, fontWeight: 700, border: `1px solid ${partialTier.color}44`,
+                <p style={s.label}>Your Finance Diagnostic is ready</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                  <div style={{
+                    fontSize: 'clamp(2.5rem,8vw,3.5rem)', fontWeight: 900,
+                    color: 'rgba(255,255,255,0.08)', letterSpacing: '-0.02em',
+                    lineHeight: 1, filter: 'blur(8px)', userSelect: 'none',
                   }}>
-                    {partialTier.label}
+                    ██
+                  </div>
+                  <span style={{ fontSize: '1.2rem', color: 'rgba(255,255,255,0.15)', marginTop: 4 }}>/100</span>
+                  <span style={{
+                    padding: '5px 14px', borderRadius: 999,
+                    background: `${tier.color}22`, color: tier.color,
+                    fontSize: 14, fontWeight: 700, border: `1px solid ${tier.color}44`,
+                  }}>
+                    {tier.label}
                   </span>
                 </div>
-                <div style={{ height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 999, overflow: 'hidden', marginBottom: 16 }}>
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${partial100}%` }}
-                    transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
-                    style={{ height: '100%', borderRadius: 999, background: partialTier.color }}
-                  />
-                </div>
-                <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
-                  Based on your first 5 answers. Your full score — including AI readiness, data traceability, and board confidence — unlocks after 3 more questions.
+                <p style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
+                  Your full score, industry benchmark, and personalised action plan are one step away.
                 </p>
               </div>
 
-              {/* Locked metric cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                <MetricCard {...metrics[0]} locked />
-                <MetricCard {...metrics[1]} locked />
+              {/* 3 locked metric cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
+                {metrics.map((m, i) => <MetricCard key={i} {...m} locked />)}
               </div>
 
-              {/* Email capture */}
-              <div style={{ ...s.card, background: 'rgba(31,143,255,0.06)', border: '1px solid rgba(31,143,255,0.18)' }}>
+              {/* Form */}
+              <div style={{ ...s.card, background: 'rgba(31,143,255,0.06)', border: '1px solid rgba(31,143,255,0.2)' }}>
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fff', marginBottom: 6 }}>
-                  Get your full Finance Diagnostic
+                  See your full Finance Diagnostic
                 </h3>
-                <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', marginBottom: 18, lineHeight: 1.5 }}>
-                  See your complete score, how you rank vs. 500+ finance teams, and the highest-ROI starting point for a company at your stage — wherever that is.
+                <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.45)', marginBottom: 18, lineHeight: 1.55 }}>
+                  Your score, peer benchmark, and the highest-ROI starting point for a company at your stage — wherever that is.
                 </p>
 
                 {submitted ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#22c55e', fontWeight: 600 }}>
-                    <CheckCircle style={{ width: 18, height: 18 }} />
-                    Done — continuing to your results…
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#22c55e', fontWeight: 600, fontSize: '0.9rem' }}>
+                    <CheckCircle style={{ width: 18, height: 18 }} /> Opening your results…
                   </div>
                 ) : (
                   <form onSubmit={handleGateSubmit}>
@@ -615,11 +591,7 @@ export default function App() {
                         <input
                           required value={name} onChange={e => setName(e.target.value)}
                           placeholder="Jane Smith"
-                          style={{
-                            width: '100%', padding: '10px 12px', borderRadius: 10, boxSizing: 'border-box',
-                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                            color: '#fff', fontSize: '0.875rem', outline: 'none',
-                          }}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.875rem', outline: 'none' }}
                         />
                       </div>
                       <div>
@@ -627,11 +599,7 @@ export default function App() {
                         <input
                           required value={company} onChange={e => setCompany(e.target.value)}
                           placeholder="Acme Corp"
-                          style={{
-                            width: '100%', padding: '10px 12px', borderRadius: 10, boxSizing: 'border-box',
-                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                            color: '#fff', fontSize: '0.875rem', outline: 'none',
-                          }}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.875rem', outline: 'none' }}
                         />
                       </div>
                     </div>
@@ -640,25 +608,16 @@ export default function App() {
                       <input
                         required type="email" value={email} onChange={e => setEmail(e.target.value)}
                         placeholder="jane@company.com"
-                        style={{
-                          width: '100%', padding: '10px 12px', borderRadius: 10, boxSizing: 'border-box',
-                          background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                          color: '#fff', fontSize: '0.875rem', outline: 'none',
-                        }}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: 10, boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.875rem', outline: 'none' }}
                       />
                     </div>
                     <button
                       type="submit" disabled={submitting}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        gap: 8, padding: '13px 20px', borderRadius: 12, border: 'none',
-                        background: submitting ? 'rgba(31,143,255,0.5)' : '#1F8FFF',
-                        color: '#fff', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer',
-                      }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px 20px', borderRadius: 12, border: 'none', background: submitting ? 'rgba(31,143,255,0.5)' : '#1F8FFF', color: '#fff', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer' }}
                     >
-                      {submitting ? 'Saving…' : <>See my full diagnostic <ArrowRight style={{ width: 17, height: 17 }} /></>}
+                      {submitting ? 'One moment…' : <>Unlock my results <ArrowRight style={{ width: 17, height: 17 }} /></>}
                     </button>
-                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', textAlign: 'center', marginTop: 10 }}>
+                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', textAlign: 'center', marginTop: 10 }}>
                       No spam. Used only to send your report and calibrate the benchmark.
                     </p>
                   </form>

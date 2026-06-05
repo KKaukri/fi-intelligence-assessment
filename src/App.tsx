@@ -5,7 +5,7 @@ import { ArrowRight, Lock, Clock, Zap, ShieldCheck, RotateCcw, CheckCircle } fro
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Option { label: string; score: number; tag: string }
-interface Question { question: string; context: string; options: Option[] }
+interface Question { question: string; context: string; aiAngle: { tag: string; line: string }; options: Option[] }
 type Step = 'intro' | 'quiz' | 'gate' | 'results';
 // Flow: intro → all 8 questions → gate (no results visible yet) → results
 // Gate fires after the last answer — full curiosity intact, nothing revealed
@@ -16,6 +16,7 @@ const ALL_QUESTIONS: Question[] = [
   {
     question: 'How does your team get data from ERPs and source systems into reports?',
     context: 'Data integration is the foundation. Everything else depends on it.',
+    aiAngle: { tag: 'AI prerequisite', line: 'Manual assembly is the #1 reason AI outputs in finance cannot be trusted — garbage in, confident nonsense out.' },
     options: [
       { label: 'Automated — data flows into reports without manual steps', score: 4, tag: 'Best practice' },
       { label: 'Mix of scheduled exports and some manual formatting',       score: 3, tag: 'Hybrid' },
@@ -26,6 +27,7 @@ const ALL_QUESTIONS: Question[] = [
   {
     question: 'How long does your month-end close take?',
     context: 'Best-in-class teams close in under 5 days. Industry median is 8.',
+    aiAngle: { tag: 'AI amplifier', line: 'AI accelerates teams that are already fast. It cannot compensate for a broken close process — it just surfaces the dysfunction faster.' },
     options: [
       { label: '1–4 days',                              score: 4, tag: 'Best-in-class' },
       { label: '5–7 days',                              score: 3, tag: 'Near best practice' },
@@ -36,6 +38,7 @@ const ALL_QUESTIONS: Question[] = [
   {
     question: 'When an executive asks for the current cash position, how quickly can you respond?',
     context: 'Decision latency is a direct proxy for data maturity.',
+    aiAngle: { tag: 'AI prerequisite', line: 'AI forecasting requires fresh data. A team running on yesterday\'s batch export will get AI recommendations 24 hours out of date.' },
     options: [
       { label: 'Instantly — available on a live dashboard',           score: 4, tag: 'Real-time' },
       { label: 'Within a few hours',                                   score: 3, tag: 'Same-day' },
@@ -46,6 +49,7 @@ const ALL_QUESTIONS: Question[] = [
   {
     question: 'How much of your close process lives in documented systems — not in people\'s heads?',
     context: 'Key-person dependency is the most underrated financial risk.',
+    aiAngle: { tag: 'AI governance', line: 'AI can only operate on processes that are explicitly defined. Undocumented steps create failure modes that are invisible until an AI surfaces them at scale.' },
     options: [
       { label: 'Fully in systems — anyone on the team could run it',   score: 4, tag: 'Resilient' },
       { label: 'Mostly documented, a few informal steps',               score: 3, tag: 'Nearly there' },
@@ -56,6 +60,7 @@ const ALL_QUESTIONS: Question[] = [
   {
     question: 'How is your chart of accounts structured across entities?',
     context: "The CoA is where multi-entity consolidation either works — or doesn't.",
+    aiAngle: { tag: 'AI prerequisite', line: 'Inconsistent definitions are invisible to AI — it will produce confident, wrong answers across entities without flagging the contradiction.' },
     options: [
       { label: 'Standardised — same definitions everywhere',               score: 4, tag: 'Aligned' },
       { label: 'Mostly consistent, minor local variations',                score: 3, tag: 'Near-aligned' },
@@ -66,6 +71,7 @@ const ALL_QUESTIONS: Question[] = [
   {
     question: 'Has your team experimented with AI (Copilot, ChatGPT, etc.) in financial workflows?',
     context: 'AI output quality in finance tracks directly with data governance maturity.',
+    aiAngle: { tag: 'Direct signal', line: 'Where you are today on AI adoption is the most honest measure of your current data foundation — teams with clean data adopt fast, teams without get blocked.' },
     options: [
       { label: 'Yes — integrated into regular processes and trusted',  score: 4, tag: 'AI-enabled' },
       { label: 'Yes — actively experimenting, mixed results',          score: 3, tag: 'Experimenting' },
@@ -76,6 +82,7 @@ const ALL_QUESTIONS: Question[] = [
   {
     question: 'Can you trace any reported number back to the source transaction that created it?',
     context: "Traceability separates 'AI-assisted' from 'AI-enabled' finance teams.",
+    aiAngle: { tag: 'AI governance', line: 'AI-generated outputs require a defensible audit trail. No lineage means no auditable AI — and increasingly, no regulatory cover.' },
     options: [
       { label: 'Yes — full lineage, auditable trail for any number',          score: 4, tag: 'Full lineage' },
       { label: 'For most numbers, with moderate effort',                       score: 3, tag: 'Mostly traceable' },
@@ -86,6 +93,7 @@ const ALL_QUESTIONS: Question[] = [
   {
     question: 'How confident do you feel presenting your numbers to the board?',
     context: 'CFO confidence in the data is the ultimate measure of financial data maturity.',
+    aiAngle: { tag: 'AI outcome', line: 'If you present today with caveats, an AI-generated number makes that harder — not easier. Board-ready AI starts with board-ready data.' },
     options: [
       { label: 'Fully confident — I can defend any number under scrutiny',      score: 4, tag: 'Fully confident' },
       { label: 'Confident on headlines, some gaps in the detail',               score: 3, tag: 'Mostly confident' },
@@ -628,15 +636,29 @@ export default function App() {
             <motion.div key="intro" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <div style={s.card}>
                 <div style={{ marginBottom: 24 }}>
-                  <p style={s.label}>Keboola · Finance Intelligence Assessment</p>
+                  <p style={s.label}>Keboola · Finance AI Readiness Assessment</p>
                   <h1 style={{ fontSize: 'clamp(1.5rem, 4vw, 2rem)', fontWeight: 900, color: '#fff', lineHeight: 1.25, marginBottom: 14 }}>
-                    Where does your finance team stand — really?
+                    Is your finance function ready for AI?
                   </h1>
                   <p style={{ fontSize: '0.95rem', color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, marginBottom: 20 }}>
-                    8 questions. 3 minutes. You'll see your Finance Intelligence Score, where you rank against 500+ finance teams, and what the highest-ROI next step looks like for a company at your stage.
+                    8 questions. 3 minutes. You'll get a Finance AI Readiness Score, a peer benchmark against 500+ teams, and a clear view of which data foundations gaps are blocking reliable AI in your function.
                   </p>
-                  <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.35)', lineHeight: 1.6, marginBottom: 28, padding: '12px 14px', background: 'rgba(31,143,255,0.06)', borderRadius: 10, borderLeft: '3px solid rgba(31,143,255,0.4)' }}>
-                    There's no "right" score to start. Companies working with us range from Stage 1 to Stage 4. Wherever you land, the diagnostic tells you exactly what to do next.
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+                    {[
+                      'Your Finance AI Readiness Score (0–100)',
+                      'Peer percentile vs 500+ finance teams',
+                      'The specific gaps preventing you from deploying AI with confidence',
+                    ].map((item, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(31,143,255,0.15)', border: '1px solid rgba(31,143,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#1F8FFF' }} />
+                        </div>
+                        <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.55)' }}>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.3)', lineHeight: 1.6, marginBottom: 28, padding: '11px 14px', background: 'rgba(31,143,255,0.05)', borderRadius: 10, borderLeft: '3px solid rgba(31,143,255,0.3)' }}>
+                    No right score to start. Companies working with us span Stage 1 to Stage 4. Each question shows exactly why it matters for AI adoption.
                   </p>
                 </div>
                 <button
@@ -667,9 +689,17 @@ export default function App() {
                 <h2 style={{ fontSize: 'clamp(1rem, 3vw, 1.2rem)', fontWeight: 700, color: '#fff', lineHeight: 1.45, marginBottom: 6 }}>
                   {q.question}
                 </h2>
-                <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)', marginBottom: 20, fontStyle: 'italic' }}>
+                <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)', marginBottom: 10, fontStyle: 'italic' }}>
                   {q.context}
                 </p>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 20, padding: '9px 12px', borderRadius: 8, background: 'rgba(31,143,255,0.06)', borderLeft: '2px solid rgba(31,143,255,0.35)' }}>
+                  <span style={{ fontSize: 9, fontWeight: 800, color: '#1F8FFF', textTransform: 'uppercase' as const, letterSpacing: '0.07em', whiteSpace: 'nowrap', paddingTop: 2 }}>
+                    {q.aiAngle.tag}
+                  </span>
+                  <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
+                    {q.aiAngle.line}
+                  </span>
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {q.options.map((opt, i) => {
                     const isSelected = selected === opt.score;

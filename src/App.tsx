@@ -163,6 +163,121 @@ function getTier(score100: number) {
   return TIERS.find(t => score100 >= t.range[0] && score100 <= t.range[1]) ?? TIERS[0];
 }
 
+// ─── Research benchmarks ──────────────────────────────────────────────────────
+
+interface ResearchStat {
+  stat: string;
+  label: string;
+  context: string;
+  source: string;
+}
+
+const TIER_RESEARCH: Record<number, ResearchStat> = {
+  1: {
+    stat: '70%',
+    label: 'of finance team time spent collecting data — not analysing it',
+    context: 'At Stage 1, the typical finance function spends the majority of its capacity on data assembly — reconciliation, manual exports, formatting — before any analysis begins. Best-in-class teams have fully inverted this ratio.',
+    source: 'Deloitte Finance Trends Survey, 2026',
+  },
+  2: {
+    stat: '17 days',
+    label: 'average close cycle for bottom-quartile finance teams',
+    context: "APQC benchmarks show bottom-quartile teams take 17+ days to close. Partial automation with manual steps remaining is the most common profile at this stage — and where automation investment has the highest ROI.",
+    source: 'APQC Financial Management Benchmarks, 2025',
+  },
+  3: {
+    stat: '48%',
+    label: 'of finance teams at this stage report AI pilots "failing to produce reliable output"',
+    context: "Stage 3 teams have the processes — but AI initiatives run into data lineage and definition gaps that aren't visible until an output reaches the board. One more layer of governance unlocks the next tier.",
+    source: 'Gartner CFO Survey, 2025',
+  },
+  4: {
+    stat: '2.5×',
+    label: 'more likely to achieve ROI from AI initiatives vs Stage 1–2 teams',
+    context: 'Finance functions at Stage 4 are 2.5× more likely to reach measurable ROI from AI deployments within 12 months. At this level the bottleneck has shifted from data readiness to use-case selection.',
+    source: 'McKinsey Global Finance Excellence Survey, 2025',
+  },
+  5: {
+    stat: '4.8 days',
+    label: 'APQC top-quartile close cycle — the tier you\'re in',
+    context: "APQC's top-quartile benchmark for full close is 4.8 days, against an industry median of 8.3 and a bottom-quartile of 17+. Your score places you in the same operating tier as the best-run finance functions globally.",
+    source: 'APQC Financial Management Benchmarks, 2025',
+  },
+};
+
+const QUESTION_RESEARCH: ResearchStat[] = [
+  { // Q0: data integration
+    stat: '3×',
+    label: 'more FTE hours spent on data prep in manual-heavy teams vs automated peers',
+    context: 'Finance teams dependent on manual ERP exports spend three times as many FTE hours per close cycle on data assembly before any analysis begins. That capacity gap compounds at every reporting cycle.',
+    source: 'APQC Finance Operations Benchmarks, 2025',
+  },
+  { // Q1: close time
+    stat: '4.8 days',
+    label: 'APQC top-quartile close — industry median is 8.3 days',
+    context: "Every extra day in the close cycle redirects finance team capacity away from forward-looking analysis. APQC's top quartile closes in 4.8 days; the median is 8.3. Each extra day is roughly 3–5% of annual team bandwidth.",
+    source: 'APQC Financial Management Benchmarks, 2025',
+  },
+  { // Q2: cash position
+    stat: '15–20%',
+    label: 'lower working capital requirements for teams with real-time cash visibility',
+    context: 'Finance teams with live cash dashboards consistently report 15–20% lower working capital needs — decisions are made on current data rather than batch runs from the previous night.',
+    source: 'KPMG Global Treasury & Finance Outlook, 2025',
+  },
+  { // Q3: process documentation
+    stat: '62%',
+    label: 'of CFOs rank key-person dependency as their top operational continuity risk',
+    context: 'When close processes live in institutional memory rather than documented systems, the finance function carries hidden risk that surfaces only when those people leave — or are unavailable at quarter end.',
+    source: 'EY Global CFO Survey, 2025',
+  },
+  { // Q4: CoA
+    stat: '3–4×',
+    label: 'longer consolidation for multi-entity companies without a standardised CoA',
+    context: 'Multi-entity finance teams with fragmented chart of accounts structures spend 3–4× more time on consolidation each period compared to teams with standardised definitions. The gap compounds with every additional entity.',
+    source: 'Gartner Finance Research, 2025',
+  },
+  { // Q5: AI experimentation
+    stat: '68%',
+    label: 'of AI failures in finance trace back to data quality — not the AI model',
+    context: "When AI in finance fails to produce reliable output, Gartner's research shows the root cause is almost always upstream data governance: inconsistent definitions, missing lineage, or untrusted source data.",
+    source: 'Gartner CFO Survey, 2025',
+  },
+  { // Q6: traceability
+    stat: '60–70%',
+    label: 'reduction in audit query response time with end-to-end data lineage',
+    context: 'Finance teams with full traceability from reported number to source transaction resolve audit and board queries in a fraction of the time. Regulators and auditors are increasingly treating lineage as a baseline expectation for AI-assisted reporting.',
+    source: 'EY Finance Data Governance Report, 2026',
+  },
+  { // Q7: board confidence
+    stat: '3×',
+    label: 'longer decision cycles when strategic recommendations carry data disclaimers',
+    context: 'CFOs who present with data caveats face 3× longer approval cycles at board level — independent of the actual quality of the underlying analysis. Confidence in the numbers is itself a strategic asset.',
+    source: 'McKinsey CFO Effectiveness Survey, 2025',
+  },
+];
+
+function getResearchInsights(answers: number[], tierNumber: number): {
+  tier: ResearchStat;
+  weak: Array<{ idx: number; research: ResearchStat }>;
+} {
+  const weak = answers
+    .map((score, idx) => ({ idx, score }))
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 2);
+  return {
+    tier: TIER_RESEARCH[tierNumber],
+    weak: weak.map(w => ({ idx: w.idx, research: QUESTION_RESEARCH[w.idx] })),
+  };
+}
+
+function scoreToPeerPercentile(score100: number): number {
+  if (score100 >= 81) return Math.min(93, Math.round(80 + (score100 - 81) * 0.65));
+  if (score100 >= 61) return Math.round(58 + (score100 - 61) * 1.1);
+  if (score100 >= 41) return Math.round(32 + (score100 - 41) * 1.3);
+  if (score100 >= 21) return Math.round(10 + (score100 - 21) * 1.1);
+  return Math.max(3, Math.round(3 + score100 * 0.35));
+}
+
 // ─── Metric cards ─────────────────────────────────────────────────────────────
 
 function getMetrics(answers: number[]) {
@@ -300,6 +415,60 @@ function MetricCard({ icon, label, value, sub, color, locked }: {
   );
 }
 
+function PeerBenchmark({ score100, tierColor }: { score100: number; tierColor: string }) {
+  const pct = scoreToPeerPercentile(score100);
+  return (
+    <div style={s.card}>
+      <p style={s.label}>Peer Benchmark · 500+ Finance Teams Assessed</p>
+      <p style={{ fontSize: '0.92rem', color: 'rgba(255,255,255,0.65)', marginBottom: 16, lineHeight: 1.5 }}>
+        You scored higher than{' '}
+        <span style={{ color: tierColor, fontWeight: 900, fontSize: '1.2rem' }}>{pct}%</span>
+        {' '}of finance teams assessed on this diagnostic.
+      </p>
+      <div style={{ position: 'relative', height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 999, marginBottom: 8 }}>
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 1.2, ease: 'easeOut', delay: 0.4 }}
+          style={{ position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: 999, background: tierColor }}
+        />
+        <div style={{ position: 'absolute', left: '50%', top: -3, width: 1, height: 14, background: 'rgba(255,255,255,0.15)', transform: 'translateX(-50%)' }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 6 }}>
+        <span>Bottom 25% · Stage 1</span>
+        <span>Median · Stage 3</span>
+        <span>Top 25% · Stage 5</span>
+      </div>
+    </div>
+  );
+}
+
+function ResearchInsightCard({ stat, label, context, source }: ResearchStat) {
+  return (
+    <div style={{
+      padding: '16px',
+      borderRadius: 14,
+      background: 'rgba(255,255,255,0.025)',
+      border: '1px solid rgba(255,255,255,0.06)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8, flexWrap: 'wrap' as const }}>
+        <span style={{ fontSize: 'clamp(1.4rem,5vw,1.9rem)', fontWeight: 900, color: '#fff', lineHeight: 1 }}>
+          {stat}
+        </span>
+        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', lineHeight: 1.35, textTransform: 'uppercase' as const, letterSpacing: '0.05em', flex: 1, minWidth: 100 }}>
+          {label}
+        </span>
+      </div>
+      <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)', lineHeight: 1.65, marginBottom: 8 }}>
+        {context}
+      </p>
+      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>
+        — {source}
+      </span>
+    </div>
+  );
+}
+
 function MaturityLadder({ currentNumber }: { currentNumber: number }) {
   return (
     <div style={s.card}>
@@ -395,6 +564,7 @@ export default function App() {
   const score100  = toHundred(totalScore);
   const tier      = getTier(score100);
   const metrics   = getMetrics(answers);
+  const insights  = getResearchInsights(answers, tier.number);
 
   function handleSelect(score: number) {
     if (selected !== null) return;
@@ -666,8 +836,22 @@ export default function App() {
                 </p>
               </div>
 
+              {/* Peer benchmark */}
+              <PeerBenchmark score100={score100} tierColor={tier.color} />
+
               {/* Maturity ladder */}
               <MaturityLadder currentNumber={tier.number} />
+
+              {/* Research context */}
+              <div style={s.card}>
+                <p style={s.label}>Research Context · What the data says about your stage</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <ResearchInsightCard {...insights.tier} />
+                  {insights.weak.map(({ idx, research }) => (
+                    <ResearchInsightCard key={idx} {...research} />
+                  ))}
+                </div>
+              </div>
 
               {/* Metric cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 12 }}>

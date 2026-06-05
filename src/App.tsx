@@ -477,50 +477,75 @@ function ResearchInsightCard({ stat, label, context, source }: ResearchStat) {
   );
 }
 
-function MaturityLadder({ currentNumber }: { currentNumber: number }) {
+// ─── Score gauge ──────────────────────────────────────────────────────────────
+
+function ScoreGauge({ score100, color }: { score100: number; color: string }) {
+  const size = 156, cx = size / 2, cy = size / 2, r = 58, sw = 11;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const pt = (deg: number) => ({ x: cx + r * Math.cos(toRad(deg)), y: cy + r * Math.sin(toRad(deg)) });
+  const { x: sx, y: sy } = pt(135);
+  const { x: ex, y: ey } = pt(45);
+  // 135° → 45° clockwise = 270° sweep; large-arc=1, sweep=1
+  const arc = `M ${sx.toFixed(1)} ${sy.toFixed(1)} A ${r} ${r} 0 1 1 ${ex.toFixed(1)} ${ey.toFixed(1)}`;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block', flexShrink: 0 }}>
+      <path d={arc} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={sw} strokeLinecap="round" />
+      <motion.path
+        d={arc} fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: score100 / 100 }}
+        transition={{ duration: 1.4, ease: 'easeOut', delay: 0.15 }}
+      />
+      <text x={cx} y={cy - 4} textAnchor="middle" dominantBaseline="middle"
+        fill="#fff" fontSize="36" fontWeight="900" fontFamily="Inter, system-ui, sans-serif">
+        {score100}
+      </text>
+      <text x={cx} y={cy + 24} textAnchor="middle" dominantBaseline="middle"
+        fill="rgba(255,255,255,0.3)" fontSize="11" fontFamily="Inter, system-ui, sans-serif">
+        / 100
+      </text>
+    </svg>
+  );
+}
+
+// ─── Dimension profile ────────────────────────────────────────────────────────
+
+const DIMENSION_LABELS = [
+  'Data integration', 'Close speed', 'Cash visibility', 'Process resilience',
+  'CoA alignment', 'AI adoption', 'Data lineage', 'Board confidence',
+];
+
+function DimensionProfile({ answers }: { answers: number[] }) {
+  const dims = answers
+    .map((score, i) => ({ score, label: DIMENSION_LABELS[i] }))
+    .sort((a, b) => b.score - a.score);
+
+  const col: Record<number, string> = { 1: '#ef4444', 2: '#f97316', 3: '#FFAD0A', 4: '#22c55e' };
+  const tag: Record<number, string> = { 1: 'Gap', 2: 'Developing', 3: 'Good', 4: 'Strong' };
+
   return (
     <div style={s.card}>
-      <p style={s.label}>Maturity Level (Gartner Framework)</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {[...TIERS].reverse().map(t => {
-          const active = t.number === currentNumber;
-          return (
-            <div
-              key={t.number}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                borderRadius: 12, border: active ? `1.5px solid ${t.color}` : '1.5px solid transparent',
-                background: active ? `${t.color}12` : 'rgba(255,255,255,0.02)',
-                transition: 'all 0.2s',
-              }}
-            >
-              <div style={{
-                width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                background: active ? t.color : 'rgba(255,255,255,0.08)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 700, color: active ? '#fff' : 'rgba(255,255,255,0.35)',
-              }}>
-                {t.number}
-              </div>
-              <div style={{ flex: 1 }}>
-                <span style={{ fontSize: '0.875rem', fontWeight: active ? 700 : 500, color: active ? '#fff' : 'rgba(255,255,255,0.45)' }}>
-                  {t.label}
-                </span>
-                <span style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)', marginTop: 1 }}>
-                  {t.description}
-                </span>
-              </div>
-              {active && (
-                <span style={{
-                  fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999,
-                  background: t.color, color: '#fff', whiteSpace: 'nowrap',
-                }}>
-                  You are here
-                </span>
-              )}
+      <p style={s.label}>AI Readiness Profile · 8 Dimensions</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+        {dims.map(({ score, label }, i) => (
+          <div key={label}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+              <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>{label}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: `${col[score]}18`, color: col[score] }}>
+                {tag[score]}
+              </span>
             </div>
-          );
-        })}
+            <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 999, overflow: 'hidden' }}>
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${(score / 4) * 100}%` }}
+                transition={{ duration: 0.7, ease: 'easeOut', delay: i * 0.06 }}
+                style={{ height: '100%', background: col[score], borderRadius: 999 }}
+              />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -829,58 +854,50 @@ export default function App() {
           {/* ── Results ── */}
           {step === 'results' && (
             <motion.div key="results" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
-              {/* Main score */}
+
+              {/* Score hero: gauge + tier */}
               <div style={s.card}>
-                <p style={s.label}>Finance Intelligence Score</p>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 12 }}>
-                  <motion.span
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
-                    style={{ fontSize: 'clamp(3rem, 10vw, 4.5rem)', fontWeight: 900, color: tier.color, lineHeight: 1 }}
-                  >
-                    {score100}
-                  </motion.span>
-                  <span style={{ fontSize: '1.5rem', color: 'rgba(255,255,255,0.25)', marginBottom: 8 }}>/100</span>
-                  <span style={{
-                    marginBottom: 10, padding: '5px 14px', borderRadius: 999,
-                    background: `${tier.color}22`, color: tier.color,
-                    fontSize: 14, fontWeight: 700, border: `1px solid ${tier.color}44`,
-                  }}>
-                    {tier.label}
-                  </span>
+                <p style={s.label}>Finance AI Readiness Score</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' as const }}>
+                  <ScoreGauge score100={score100} color={tier.color} />
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <span style={{
+                      display: 'inline-block', marginBottom: 10, padding: '5px 14px', borderRadius: 999,
+                      background: `${tier.color}22`, color: tier.color,
+                      fontSize: 13, fontWeight: 700, border: `1px solid ${tier.color}44`,
+                    }}>
+                      Stage {tier.number} · {tier.label}
+                    </span>
+                    <h2 style={{ fontSize: 'clamp(0.95rem, 3vw, 1.1rem)', fontWeight: 700, color: '#fff', marginBottom: 10, lineHeight: 1.45 }}>
+                      {tier.headline}
+                    </h2>
+                    <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)', lineHeight: 1.65 }}>
+                      {tier.body}
+                    </p>
+                  </div>
                 </div>
-                <div style={{ height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 999, overflow: 'hidden', marginBottom: 16 }}>
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${score100}%` }}
-                    transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
-                    style={{ height: '100%', borderRadius: 999, background: tier.color }}
-                  />
-                </div>
-                <h2 style={{ fontSize: 'clamp(1rem, 3vw, 1.15rem)', fontWeight: 700, color: '#fff', marginBottom: 10, lineHeight: 1.4 }}>
-                  {tier.headline}
-                </h2>
-                <p style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.55)', lineHeight: 1.65 }}>
-                  {tier.body}
-                </p>
               </div>
 
               {/* Peer benchmark */}
               <PeerBenchmark score100={score100} tierColor={tier.color} />
 
-              {/* Maturity ladder */}
-              <MaturityLadder currentNumber={tier.number} />
+              {/* Dimension profile */}
+              <DimensionProfile answers={answers} />
 
-              {/* Research context */}
+              {/* Biggest gaps */}
               <div style={s.card}>
-                <p style={s.label}>Research Context · What the data says about your stage</p>
+                <p style={s.label}>Your biggest AI readiness gaps</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <ResearchInsightCard {...insights.tier} />
                   {insights.weak.map(({ idx, research }) => (
                     <ResearchInsightCard key={idx} {...research} />
                   ))}
                 </div>
+              </div>
+
+              {/* Stage research */}
+              <div style={s.card}>
+                <p style={s.label}>What research says about Stage {tier.number} teams</p>
+                <ResearchInsightCard {...insights.tier} />
               </div>
 
               {/* Metric cards */}
@@ -889,11 +906,14 @@ export default function App() {
               </div>
 
               {/* CTA */}
-              <div style={{ ...s.card, background: 'rgba(31,143,255,0.06)', border: '1px solid rgba(31,143,255,0.2)', textAlign: 'center' }}>
-                <p style={{ fontSize: '1rem', fontWeight: 700, color: '#fff', marginBottom: 6 }}>
-                  See what the next stage looks like for you
+              <div style={{ ...s.card, background: 'linear-gradient(145deg, rgba(31,143,255,0.1) 0%, rgba(31,143,255,0.04) 100%)', border: '1px solid rgba(31,143,255,0.22)' }}>
+                <p style={{ fontSize: '0.68rem', fontWeight: 800, color: '#1F8FFF', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginBottom: 10 }}>
+                  Next step
                 </p>
-                <p style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.45)', marginBottom: 20, lineHeight: 1.55 }}>
+                <p style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fff', marginBottom: 8, lineHeight: 1.35 }}>
+                  See what Stage {Math.min(tier.number + 1, 5)} looks like for your function
+                </p>
+                <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.45)', marginBottom: 22, lineHeight: 1.6 }}>
                   {tier.cta}
                 </p>
                 <a
@@ -902,15 +922,15 @@ export default function App() {
                   rel="noopener noreferrer"
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 8,
-                    padding: '13px 24px', borderRadius: 12, background: '#1F8FFF',
+                    padding: '14px 28px', borderRadius: 12, background: '#1F8FFF',
                     color: '#fff', fontWeight: 700, fontSize: '0.95rem',
-                    textDecoration: 'none', marginBottom: 12,
+                    textDecoration: 'none', marginBottom: 14,
                   }}
                 >
                   Book a 30-min diagnostic call <ArrowRight style={{ width: 17, height: 17 }} />
                 </a>
-                <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.25)' }}>
-                  Same call, any stage. We work with companies from Stage 1 to Stage 4.
+                <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.22)', lineHeight: 1.5 }}>
+                  30 minutes. No prep needed. We work with companies from Stage 1 to Stage 4.
                 </p>
               </div>
 
